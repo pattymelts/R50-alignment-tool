@@ -30,12 +30,12 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Ensure the video fills the container and is flipped for rear camera (common fix) */
+        /* Ensure the video fills the container and is NOT flipped (FIX: removed transform: scaleX(-1)) */
         #videoElement {
             min-width: 100%;
             min-height: 100%;
             object-fit: cover;
-            transform: scaleX(-1);
+            /* transform: scaleX(-1); <--- REMOVED THIS LINE */
         }
         /* Style for the main red alignment line */
         .alignment-line {
