@@ -20,7 +20,7 @@
     </script>
     
     <!-- PWA Manifest for Installation -->
-    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIEFsaWduZXIgVHV0b3IiLCAic2hvcnRfbmFtZSI6ICJSNTAgQWxpZ25lciIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
+    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIEFsaWduZXIgVHV0b3IiLCAic2hvcnRfbmFtZSI6ICJSNTAgQWxpZ25lciIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#30bb96">
@@ -30,16 +30,19 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Ensure the video fills the container and is NOT flipped (FIX: removed transform: scaleX(-1)) */
+        /* Ensure the video fills the container and is NOT flipped */
         #videoElement {
             min-width: 100%;
             min-height: 100%;
             object-fit: cover;
-            /* transform: scaleX(-1); <--- REMOVED THIS LINE */
         }
         /* Style for the main red alignment line */
         .alignment-line {
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.9);
+        }
+        /* Make the secondary line's pointer events active for dragging */
+        #secondaryLine {
+            cursor: grab;
         }
     </style>
 </head>
@@ -73,9 +76,14 @@
             </button>
         </div>
         
-        <!-- Alignment Guide Overlay (THIS IS WHERE THE RED LINE IS GENERATED) -->
+        <!-- Alignment Guide Overlay (THIS IS WHERE THE LINES ARE GENERATED) -->
         <div id="alignmentOverlay" class="absolute inset-0 pointer-events-none hidden">
             
+            <!-- Secondary User-Movable Alignment Line (Yellow) -->
+            <!-- pointer-events: auto is added here to make this specific div draggable -->
+            <div id="secondaryLine" class="absolute inset-y-0 w-1 bg-yellow-400 opacity-90 alignment-line"
+                style="left: 25%; pointer-events: auto;"></div>
+
             <!-- Primary Alignment Line (Vertical) - Align R50 Stickers Here -->
             <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-red-500 opacity-90 alignment-line"></div>
 
@@ -100,7 +108,7 @@
           </p>
           <ul class="text-xs text-gray-400 list-disc list-inside px-4">
             <li>Place phone directly behind R50 (or in a mount).</li>
-            <li>Adjust the R50 until the **three reflective stickers** are perfectly centered on the **Red Vertical Line**.</li>
+            <li>Align R50 stickers to the **Red Line**. Drag the **Yellow Line** to use as a secondary target reference.</li>
           </ul>
         </div>
     </footer>
@@ -118,6 +126,62 @@
         const alignmentOverlay = document.getElementById('alignmentOverlay');
         const spinner = document.getElementById('spinner');
 
+        // Global state for dragging the secondary line
+        let isDragging = false;
+        let secondaryLine = null;
+        let container = null;
+        
+        // --- Dragging Logic ---
+
+        function setupDragListeners() {
+            secondaryLine = document.getElementById('secondaryLine');
+            container = document.getElementById('alignmentOverlay');
+            
+            // Mouse events
+            secondaryLine.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', dragMove);
+            document.addEventListener('mouseup', dragEnd);
+
+            // Touch events
+            secondaryLine.addEventListener('touchstart', dragStart);
+            document.addEventListener('touchmove', dragMove);
+            document.addEventListener('touchend', dragEnd);
+        }
+
+        function dragStart(e) {
+            e.preventDefault(); // Prevent default browser actions (scrolling/selection)
+            isDragging = true;
+            // Provide visual feedback while dragging
+            secondaryLine.classList.add('opacity-100', 'shadow-2xl'); 
+            console.log("Drag started.");
+        }
+
+        function dragMove(e) {
+            if (!isDragging || !container) return;
+            
+            // Use clientX from touch list or mouse event
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            
+            const containerRect = container.getBoundingClientRect();
+            
+            // Calculate new position as a percentage relative to the container width
+            let newPositionPercent = ((clientX - containerRect.left) / containerRect.width) * 100;
+
+            // Clamp the position between 0% and 100% to keep it on screen
+            newPositionPercent = Math.max(0, Math.min(100, newPositionPercent));
+
+            // Update the CSS position (lock to X axis ensures it remains parallel)
+            secondaryLine.style.left = newPositionPercent + '%';
+        }
+
+        function dragEnd() {
+            if (isDragging) {
+                isDragging = false;
+                secondaryLine.classList.remove('opacity-100', 'shadow-2xl');
+                console.log("Drag ended.");
+            }
+        }
+        
         // --- Camera Logic ---
         window.startCamera = async function() {
             loadingMessage.textContent = 'Requesting camera access...';
@@ -146,7 +210,9 @@
                     statusOverlay.classList.add('hidden');
                     videoElement.classList.remove('hidden');
                     alignmentOverlay.classList.remove('hidden');
-                    console.log('Camera initialized successfully.');
+                    // Setup drag listeners once the camera feed is ready
+                    setupDragListeners();
+                    console.log('Camera initialized successfully and drag listeners setup.');
                     videoElement.onplay = null; // Clear the event to prevent multiple calls
                 };
                 
