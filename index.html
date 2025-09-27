@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Garmin R50 Alignment Guide</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Garmin R50 Smart Aligner</title>
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,46 +19,54 @@
         }
     </script>
     
-    <!-- PWA Manifest for Installation -->
-    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIEFsaWduZXIgVHV0b3IiLCAic2hvcnRfbmFtZSI6ICJSNTAgQWxpZ25lciIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
+    <!-- PWA Manifest & Styling -->
+    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIFNtYXJ0IEFsaWduZXIgVHV0b3IiLCAic2hvcnRfbmFtZSI6ICJSNTAgQWxJZyIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#30bb96">
 
     <style>
-        /* Use Inter font */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Ensure the video fills the container and is flipped for rear camera (common fix) */
+        body { font-family: 'Inter', sans-serif; }
+        /* Video element for the camera feed */
         #videoElement {
             min-width: 100%;
             min-height: 100%;
             object-fit: cover;
-            transform: scaleX(-1);
+            /* Removed: transform: scaleX(-1); to fix horizontal mirroring */
         }
-        /* Style for the main red alignment line */
-        .alignment-line {
-            box-shadow: 0 0 10px rgba(255, 0, 0, 0.9);
+        /* Canvas for overlaying alignment graphics (must be pointer-events-none) */
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
         }
     </style>
 </head>
 <body class="h-screen w-full bg-gray-900 flex flex-col overflow-hidden text-white p-0 m-0">
 
     <!-- Header -->
-    <header class="p-4 bg-gray-800 shadow-lg z-10">
-        <h1 class="text-2xl font-bold text-center text-green-400">R50 Alignment Guide</h1>
-        <p class="text-xs text-center text-gray-400 mt-1">Align the three physical stickers to the center line.</p>
+    <header class="p-3 bg-gray-800 shadow-lg z-10">
+        <h1 class="text-xl font-bold text-center text-green-400">R50 Smart Aligner (CV)</h1>
     </header>
 
     <!-- Camera Viewport & Alignment Overlay -->
     <div class="flex-grow relative bg-black flex items-center justify-center overflow-hidden">
         
-        <!-- Camera Feed (Video Element) -->
+        <!-- 1. Video Element (Camera Feed) -->
         <video id="videoElement" autoplay playsinline class="hidden"></video>
+        
+        <!-- 2. Hidden Processing Canvas (Computer Vision) -->
+        <canvas id="detectionCanvas" class="hidden"></canvas>
 
-        <!-- Loading / Error States -->
-        <div id="statusOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-800/90 p-4">
+        <!-- 3. Dynamic Overlay Canvas (Graphics/Lines) -->
+        <canvas id="overlayCanvas"></canvas>
+
+        <!-- 4. Loading / Error States -->
+        <div id="statusOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-800/90 p-4 z-30">
             <svg id="spinner" class="animate-spin h-8 w-8 text-green-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -66,42 +74,28 @@
             <p id="loadingMessage" class="text-gray-300">Initializing camera...</p>
             <button 
                 id="retryButton" 
-                onclick="startCamera()" 
+                onclick="window.startCamera()" 
                 class="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-xl shadow-lg text-white font-semibold transition duration-200 hidden"
                 >
                 Try Camera Again
             </button>
         </div>
         
-        <!-- Alignment Guide Overlay -->
-        <div id="alignmentOverlay" class="absolute inset-0 pointer-events-none hidden">
-            
-            <!-- Primary Alignment Line (Vertical) - Align R50 Stickers Here -->
-            <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-red-500 opacity-90 alignment-line"></div>
-
-            <!-- Horizontal Level Guide (Center) -->
-            <div class="absolute top-1/2 left-0 w-full h-0.5 bg-blue-500 opacity-50"></div>
-            
-            <!-- Distance Markers -->
-            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[20%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
-            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[50%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
-            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[80%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
-
-            <!-- Center Crosshair -->
-            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 border-2 border-yellow-400 rounded-full"></div>
+        <!-- 5. Alignment Status Feedback -->
+        <div class="absolute top-2 left-1/2 transform -translate-x-1/2 p-2 bg-black/70 rounded-lg shadow-xl z-30">
+            <div id="alignmentStatus" class="text-center text-sm font-semibold text-yellow-400 min-w-[200px]">
+                Searching for reflective stickers...
+            </div>
         </div>
     </div>
 
     <!-- Footer / Info Panel -->
     <footer class="p-3 bg-gray-800 z-10">
-        <div class="mt-2 text-center">
-          <p class="text-sm font-semibold text-green-300">
-            Instructions:
-          </p>
-          <ul class="text-xs text-gray-400 list-disc list-inside px-4">
-            <li>Place phone directly behind R50 (or in a mount).</li>
-            <li>Adjust the R50 until the **three reflective stickers** are perfectly centered on the **Red Vertical Line**.</li>
-          </ul>
+        <div class="text-xs text-center text-gray-500 mb-2">
+            User ID: <span id="userIdDisplay">Authenticating...</span> | App ID: <span id="appIdDisplay"></span>
+        </div>
+        <div class="text-center">
+            <p class="text-sm text-gray-400">Aim phone to see the three stickers and guide line.</p>
         </div>
     </footer>
 
@@ -109,26 +103,224 @@
         // --- Firebase Imports (MUST be at the top of a module script) ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-        // Global variables and elements
+        
+        // --- Environment & Global Elements ---
         const videoElement = document.getElementById('videoElement');
+        const statusOverlay = document.getElementById('statusOverlay');
         const loadingMessage = document.getElementById('loadingMessage');
         const retryButton = document.getElementById('retryButton');
-        const statusOverlay = document.getElementById('statusOverlay');
-        const alignmentOverlay = document.getElementById('alignmentOverlay');
-        const spinner = document.getElementById('spinner');
+        const alignmentStatus = document.getElementById('alignmentStatus');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const detectionCanvas = document.getElementById('detectionCanvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        const detectionCtx = detectionCanvas.getContext('2d');
 
-        // --- Camera Logic ---
+        // --- CV Configuration ---
+        const BRIGHTNESS_THRESHOLD = 200; // Pixel R+G+B must exceed this value (max is 765)
+        const PIXEL_STEP = 4; // Scan every 4th pixel for performance optimization
+        const FRAME_RATE_MS = 250; // Process frame every 250 milliseconds (4 times a second)
+        const MAX_BLOBS = 3; // We are specifically looking for 3 stickers
+
+        // --- Utility Functions ---
+        
+        /**
+         * Converts radians to degrees.
+         */
+        const radToDeg = (rad) => rad * (180 / Math.PI);
+
+        /**
+         * Calculates the angle of the line defined by the three points (regression line).
+         * @param {Array<Object>} points - Array of {x, y} coordinates.
+         * @returns {number} Angle in degrees, or null if fewer than 2 points.
+         */
+        function calculateLineAngle(points) {
+            if (points.length < 2) return null;
+
+            // Simple linear regression to find best fit line (y = mx + b)
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            const N = points.length;
+
+            points.forEach(p => {
+                sumX += p.x;
+                sumY += p.y;
+                sumXX += p.x * p.x;
+                sumXY += p.x * p.y;
+            });
+
+            const m = (N * sumXY - sumX * sumY) / (N * sumXX - sumX * sumX);
+            
+            // Calculate angle: Math.atan(slope) returns angle in radians
+            // We want the angle relative to the *horizontal* axis (in degrees).
+            let angleRad = Math.atan(m);
+            let angleDeg = radToDeg(angleRad);
+            
+            // Normalize angle to be between -90 and +90
+            if (angleDeg > 90) angleDeg -= 180;
+            if (angleDeg < -90) angleDeg += 180;
+            
+            return angleDeg;
+        }
+
+        // --- Computer Vision (CV) Logic ---
+
+        /**
+         * Executes the image processing to find bright stickers.
+         */
+        function processFrame() {
+            if (videoElement.paused || videoElement.ended || videoElement.readyState < 2) {
+                return;
+            }
+
+            const vw = videoElement.videoWidth;
+            const vh = videoElement.videoHeight;
+            
+            // 1. Prepare Canvases
+            // Ensure canvas size matches video size for accurate detection
+            detectionCanvas.width = vw;
+            detectionCanvas.height = vh; 
+            overlayCanvas.width = videoElement.offsetWidth;
+            overlayCanvas.height = videoElement.offsetHeight;
+
+            // Clear overlay canvas
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            // 2. Capture Frame
+            detectionCtx.drawImage(videoElement, 0, 0, vw, vh);
+            const imageData = detectionCtx.getImageData(0, 0, vw, vh);
+            const data = imageData.data;
+            
+            const brightSpots = []; // Stores {x, y, brightness} of potential stickers
+            
+            // 3. Pixel Thresholding
+            // Loop through pixels, checking only every PIXEL_STEP pixel for performance
+            for (let i = 0; i < data.length; i += 4 * PIXEL_STEP) {
+                // Indices for R, G, B, A
+                const brightness = data[i] + data[i + 1] + data[i + 2];
+                
+                if (brightness > BRIGHTNESS_THRESHOLD) {
+                    // Calculate original pixel coordinates
+                    const pixelIndex = i / 4;
+                    const x = (pixelIndex % vw);
+                    const y = Math.floor(pixelIndex / vw);
+                    
+                    brightSpots.push({ x: x, y: y, brightness: brightness });
+                }
+            }
+            
+            // Simple approach: Take the MAX_BLOBS brightest points as the sticker centers
+            brightSpots.sort((a, b) => b.brightness - a.brightness);
+            const detectedStickers = brightSpots.slice(0, MAX_BLOBS);
+
+            // 4. Draw & Provide Feedback (if enough points detected)
+            if (detectedStickers.length >= 2) {
+                drawAlignmentGuide(detectedStickers);
+                updateAlignmentStatus(detectedStickers);
+            } else {
+                alignmentStatus.className = 'text-center text-sm font-semibold text-yellow-400 min-w-[200px]';
+                alignmentStatus.textContent = detectedStickers.length < 1 
+                    ? 'Stickers not detected. Ensure good lighting/contrast.'
+                    : `Detected only ${detectedStickers.length} sticker(s). Need ${MAX_BLOBS}.`;
+            }
+        }
+        
+        /**
+         * Draws the detected points and the alignment line on the overlay canvas.
+         */
+        function drawAlignmentGuide(points) {
+            // Scale detection coordinates (vw/vh) to screen coordinates (overlayCanvas.width/height)
+            const scaleX = overlayCanvas.width / videoElement.videoWidth;
+            const scaleY = overlayCanvas.height / videoElement.videoHeight;
+            
+            // **FIX: Removed flipX logic here as CSS transform: scaleX(-1) was removed**
+            const screenX = (x) => x * scaleX;
+
+            // Draw Detected Points
+            overlayCtx.fillStyle = 'yellow';
+            points.forEach(p => {
+                const x = screenX(p.x);
+                const y = p.y * scaleY;
+                overlayCtx.beginPath();
+                overlayCtx.arc(x, y, 8, 0, Math.PI * 2); // 8px radius
+                overlayCtx.fill();
+            });
+
+            // Draw Alignment Line
+            if (points.length >= 2) {
+                overlayCtx.strokeStyle = 'lime';
+                overlayCtx.lineWidth = 4;
+                overlayCtx.beginPath();
+                
+                // Start at the first point
+                overlayCtx.moveTo(screenX(points[0].x), points[0].y * scaleY);
+                
+                // Draw line through all points
+                for (let i = 1; i < points.length; i++) {
+                    overlayCtx.lineTo(screenX(points[i].x), points[i].y * scaleY);
+                }
+                overlayCtx.stroke();
+            }
+        }
+        
+        /**
+         * Calculates and displays the alignment status based on the detected line.
+         */
+        function updateAlignmentStatus(points) {
+            const angleDeg = calculateLineAngle(points);
+
+            if (angleDeg === null) {
+                alignmentStatus.textContent = 'Need more points for alignment.';
+                alignmentStatus.className = 'text-center text-sm font-semibold text-yellow-400 min-w-[200px]';
+                return;
+            }
+
+            // Target alignment is a line straight down the range, which means it should be 
+            // perfectly vertical in the camera frame (an angle of +90 or -90 degrees, or 
+            // close to 0 degrees if measured against the vertical axis).
+            
+            // Since our angle is relative to the *horizontal* axis:
+            // 0 degrees = Perfectly horizontal (Bad alignment)
+            // 90 degrees = Perfectly vertical (Perfect alignment down range)
+            
+            const alignmentAngle = 90 - Math.abs(angleDeg); // Deviation from perfect vertical (90 degrees)
+
+            const TOLERANCE = 2; // Tolerance in degrees
+            
+            if (Math.abs(alignmentAngle) < TOLERANCE) {
+                // Perfect or near-perfect alignment (vertical)
+                alignmentStatus.textContent = `PERFECT ALIGNMENT! (Deviation: ${alignmentAngle.toFixed(1)}°)`;
+                alignmentStatus.className = 'text-center text-sm font-semibold text-green-400 min-w-[200px]';
+            } else {
+                // Misaligned
+                let direction = '';
+                // Since 90 degrees is straight, > 90 means it's leaning left, < 90 leaning right
+                if (angleDeg > 0) {
+                    direction = 'Rotate Right'; 
+                } else {
+                    direction = 'Rotate Left'; 
+                }
+                
+                const deviation = angleDeg - 90; // The actual deviation from vertical
+                
+                if (Math.abs(deviation) < 5) {
+                   alignmentStatus.textContent = `Minor Correction: ${direction} slightly. (${Math.abs(deviation).toFixed(1)}°)`;
+                   alignmentStatus.className = 'text-center text-sm font-semibold text-orange-400 min-w-[200px]';
+                } else {
+                   alignmentStatus.textContent = `MAJOR CORRECTION NEEDED! ${direction}. (${Math.abs(deviation).toFixed(1)}°)`;
+                   alignmentStatus.className = 'text-center text-sm font-semibold text-red-500 min-w-[200px]';
+                }
+            }
+        }
+
+
+        // --- Camera & Initialization Logic ---
+        let processingInterval;
+        
         window.startCamera = async function() {
             loadingMessage.textContent = 'Requesting camera access...';
             statusOverlay.classList.remove('hidden');
             videoElement.classList.add('hidden');
-            alignmentOverlay.classList.add('hidden');
             retryButton.classList.add('hidden');
-            spinner.classList.remove('hidden');
 
-            // SIMPLIFIED CONSTRAINTS: Request rear camera without specific resolution demands 
-            // to maximize compatibility and speed up initialization.
             const constraints = {
                 video: {
                     facingMode: 'environment'
@@ -139,75 +331,77 @@
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoElement.srcObject = stream;
                 
-                // Play immediately after the stream is attached to resolve initialization quickly
-                videoElement.play(); 
+                videoElement.onloadedmetadata = () => {
+                    videoElement.play(); 
+                };
                 
-                // Hide loading screen once playback starts
                 videoElement.onplay = () => {
+                    // Set canvas resolution based on video feed size
+                    overlayCanvas.width = videoElement.offsetWidth;
+                    overlayCanvas.height = videoElement.offsetHeight;
+
                     statusOverlay.classList.add('hidden');
                     videoElement.classList.remove('hidden');
-                    alignmentOverlay.classList.remove('hidden');
-                    console.log('Camera initialized successfully.');
-                    videoElement.onplay = null; // Clear the event to prevent multiple calls
+                    console.log('Camera initialized successfully. Starting CV loop.');
+                    
+                    // Start the computer vision processing loop
+                    if (processingInterval) clearInterval(processingInterval);
+                    processingInterval = setInterval(processFrame, FRAME_RATE_MS);
+                    videoElement.onplay = null;
                 };
                 
             } catch (err) {
                 console.error("Camera access error:", err);
-                spinner.classList.add('hidden');
-                retryButton.classList.remove('hidden');
+                // Stop processing loop if camera fails
+                if (processingInterval) clearInterval(processingInterval);
                 
-                // Better error feedback
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    loadingMessage.textContent = 'Permission denied. Check your phone settings or click "Try Again" to re-prompt.';
-                } else if (err.name === 'NotFoundError') {
-                    loadingMessage.textContent = 'No camera found. Is the device camera working?';
-                } else {
-                    loadingMessage.textContent = `Camera Error: ${err.name}. Try restarting.`;
-                }
+                loadingMessage.textContent = `Camera Error: ${err.name}. Please ensure permissions are granted.`;
+                retryButton.classList.remove('hidden');
             }
         }
 
-        // --- PWA Service Worker Registration ---
+        // --- PWA Service Worker Registration & Firebase Setup ---
+        
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Register a simple service worker that does nothing but satisfies PWA requirements
-                navigator.serviceWorker.register('data:application/javascript;base64,').then(registration => {
-                    console.log('Service Worker registered with scope:', registration.scope);
-                }, err => {
-                    console.log('Service Worker registration failed:', err);
-                });
+                navigator.serviceWorker.register('data:application/javascript;base64,').catch(err => console.log('SW registration failed:', err));
             });
         }
 
-        // --- Initialize Camera on Load ---
-        window.addEventListener('load', startCamera);
+        window.addEventListener('load', () => {
+            // 1. Initialize Firebase (Mandatory for environment)
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'garmin-r50-aligner';
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+            document.getElementById('appIdDisplay').textContent = appId;
 
-        // --- Firebase/Auth/App ID (Required Environment Context) ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'garmin-r50-aligner';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-
-        try {
-            // Check if Firebase config is available before initializing
-            if (Object.keys(firebaseConfig).length > 0) {
-                 const app = initializeApp(firebaseConfig);
-                 const auth = getAuth(app);
-            
-                 async function authenticate() {
-                     if (typeof __initial_auth_token !== 'undefined') {
-                         await signInWithCustomToken(auth, __initial_auth_token);
-                     } else {
-                         await signInAnonymously(auth);
+            try {
+                if (Object.keys(firebaseConfig).length > 0) {
+                     const app = initializeApp(firebaseConfig);
+                     const auth = getAuth(app);
+                
+                     async function authenticate() {
+                         const userIdDisplay = document.getElementById('userIdDisplay');
+                         if (typeof __initial_auth_token !== 'undefined') {
+                             await signInWithCustomToken(auth, __initial_auth_token);
+                         } else {
+                             await signInAnonymously(auth);
+                         }
+                         userIdDisplay.textContent = auth.currentUser?.uid || 'Anon';
+                         console.log('Firebase authentication setup complete.');
                      }
-                     console.log('Firebase authentication setup complete.');
-                 }
-                 authenticate();
-            } else {
-                console.warn('Firebase config not found. Running application without authentication context.');
+                     authenticate();
+                } else {
+                    console.warn('Firebase config not found. Running application without authentication context.');
+                    document.getElementById('userIdDisplay').textContent = crypto.randomUUID().substring(0, 8);
+                }
+            } catch (error) {
+                console.error('Firebase Initialization Error:', error);
             }
             
-        } catch (error) {
-            console.error('Firebase Initialization Error:', error);
-        }
+            // 2. Start Camera
+            window.startCamera();
+        });
     </script>
 </body>
 </html>
+
