@@ -27,12 +27,11 @@
 
     <style>
         body { font-family: 'Inter', sans-serif; }
-        /* Video element for the camera feed */
+        /* Video element for the camera feed (No flipping) */
         #videoElement {
             min-width: 100%;
             min-height: 100%;
             object-fit: cover;
-            /* Removed: transform: scaleX(-1); to fix horizontal mirroring */
         }
         /* Canvas for overlaying alignment graphics (must be pointer-events-none) */
         #overlayCanvas {
@@ -95,7 +94,7 @@
             User ID: <span id="userIdDisplay">Authenticating...</span> | App ID: <span id="appIdDisplay"></span>
         </div>
         <div class="text-center">
-            <p class="text-sm text-gray-400">Aim phone to see the three stickers and guide line.</p>
+            <p class="text-sm text-gray-400">Aim phone to see the three stickers and guide line. Detection should be more reliable now.</p>
         </div>
     </footer>
 
@@ -116,27 +115,31 @@
         const detectionCtx = detectionCanvas.getContext('2d');
 
         // --- CV Configuration ---
-        const BRIGHTNESS_THRESHOLD = 200; // Pixel R+G+B must exceed this value (max is 765)
-        const PIXEL_STEP = 4; // Scan every 4th pixel for performance optimization
-        const FRAME_RATE_MS = 250; // Process frame every 250 milliseconds (4 times a second)
-        const MAX_BLOBS = 3; // We are specifically looking for 3 stickers
-
+        // Adjusted to be slightly lower, assuming high contrast outside
+        const BRIGHTNESS_THRESHOLD = 180; 
+        const PIXEL_STEP = 4; // Scan every 4th pixel for performance
+        const MAX_BLOB_DISTANCE = 50; // Max pixel distance to merge bright spots into one sticker/blob
+        const FRAME_RATE_MS = 250; 
+        const MAX_BLOBS = 3; 
+        
         // --- Utility Functions ---
         
+        /**
+         * Calculates squared distance between two points for performance.
+         */
+        const distSq = (p1, p2) => (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+
         /**
          * Converts radians to degrees.
          */
         const radToDeg = (rad) => rad * (180 / Math.PI);
 
         /**
-         * Calculates the angle of the line defined by the three points (regression line).
-         * @param {Array<Object>} points - Array of {x, y} coordinates.
-         * @returns {number} Angle in degrees, or null if fewer than 2 points.
+         * Calculates the angle of the line defined by the points (linear regression).
          */
         function calculateLineAngle(points) {
             if (points.length < 2) return null;
 
-            // Simple linear regression to find best fit line (y = mx + b)
             let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
             const N = points.length;
 
@@ -147,10 +150,10 @@
                 sumXY += p.x * p.y;
             });
 
-            const m = (N * sumXY - sumX * sumY) / (N * sumXX - sumX * sumX);
+            const denominator = (N * sumXX - sumX * sumX);
+            // Handle near-vertical lines gracefully
+            const m = denominator === 0 ? Infinity : (N * sumXY - sumX * sumY) / denominator;
             
-            // Calculate angle: Math.atan(slope) returns angle in radians
-            // We want the angle relative to the *horizontal* axis (in degrees).
             let angleRad = Math.atan(m);
             let angleDeg = radToDeg(angleRad);
             
@@ -161,10 +164,10 @@
             return angleDeg;
         }
 
-        // --- Computer Vision (CV) Logic ---
+        // --- Computer Vision (CV) Logic - Enhanced Blob Detection ---
 
         /**
-         * Executes the image processing to find bright stickers.
+         * Executes the image processing to find bright stickers (blobs).
          */
         function processFrame() {
             if (videoElement.paused || videoElement.ended || videoElement.readyState < 2) {
@@ -173,53 +176,80 @@
 
             const vw = videoElement.videoWidth;
             const vh = videoElement.videoHeight;
-            
+            const maxDistanceSq = MAX_BLOB_DISTANCE ** 2; // Pre-calculate squared distance
+
             // 1. Prepare Canvases
-            // Ensure canvas size matches video size for accurate detection
             detectionCanvas.width = vw;
             detectionCanvas.height = vh; 
             overlayCanvas.width = videoElement.offsetWidth;
             overlayCanvas.height = videoElement.offsetHeight;
-
-            // Clear overlay canvas
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             
-            // 2. Capture Frame
+            // 2. Capture Frame and get pixel data
             detectionCtx.drawImage(videoElement, 0, 0, vw, vh);
-            const imageData = detectionCtx.getImageData(0, 0, vw, vh);
-            const data = imageData.data;
+            const data = detectionCtx.getImageData(0, 0, vw, vh).data;
             
-            const brightSpots = []; // Stores {x, y, brightness} of potential stickers
+            const detectedBlobs = []; 
             
-            // 3. Pixel Thresholding
-            // Loop through pixels, checking only every PIXEL_STEP pixel for performance
+            // 3. Cluster Bright Spots into Blobs
             for (let i = 0; i < data.length; i += 4 * PIXEL_STEP) {
-                // Indices for R, G, B, A
                 const brightness = data[i] + data[i + 1] + data[i + 2];
                 
                 if (brightness > BRIGHTNESS_THRESHOLD) {
-                    // Calculate original pixel coordinates
                     const pixelIndex = i / 4;
                     const x = (pixelIndex % vw);
                     const y = Math.floor(pixelIndex / vw);
+                    const point = { x, y, totalBrightness: brightness };
+
+                    let foundBlob = false;
                     
-                    brightSpots.push({ x: x, y: y, brightness: brightness });
+                    // Check if this bright pixel belongs to an existing blob
+                    for (const blob of detectedBlobs) {
+                        // Use the centroid (average position) for distance check
+                        const centroid = { x: blob.sumX / blob.count, y: blob.sumY / blob.count };
+                        if (distSq(point, centroid) < maxDistanceSq) {
+                            // Merge point into the existing blob
+                            blob.sumX += x;
+                            blob.sumY += y;
+                            blob.totalBrightness += brightness;
+                            blob.count++;
+                            foundBlob = true;
+                            break;
+                        }
+                    }
+
+                    // If not close to any existing blob, start a new one
+                    if (!foundBlob) {
+                        detectedBlobs.push({
+                            sumX: x,
+                            sumY: y,
+                            totalBrightness: brightness,
+                            count: 1
+                        });
+                    }
                 }
             }
-            
-            // Simple approach: Take the MAX_BLOBS brightest points as the sticker centers
-            brightSpots.sort((a, b) => b.brightness - a.brightness);
-            const detectedStickers = brightSpots.slice(0, MAX_BLOBS);
 
-            // 4. Draw & Provide Feedback (if enough points detected)
-            if (detectedStickers.length >= 2) {
-                drawAlignmentGuide(detectedStickers);
-                updateAlignmentStatus(detectedStickers);
+            // 4. Finalize Blobs and Select Top 3
+            // Calculate centroid for each blob and use totalBrightness for ranking
+            const finalStickers = detectedBlobs
+                .map(blob => ({
+                    x: blob.sumX / blob.count, // Centroid X
+                    y: blob.sumY / blob.count, // Centroid Y
+                    rank: blob.totalBrightness // Rank by brightness (proxy for size)
+                }))
+                .sort((a, b) => b.rank - a.rank) // Sort descending by brightness
+                .slice(0, MAX_BLOBS); // Select only the top 3
+
+            // 5. Draw & Provide Feedback
+            if (finalStickers.length >= 2) {
+                drawAlignmentGuide(finalStickers);
+                updateAlignmentStatus(finalStickers);
             } else {
                 alignmentStatus.className = 'text-center text-sm font-semibold text-yellow-400 min-w-[200px]';
-                alignmentStatus.textContent = detectedStickers.length < 1 
-                    ? 'Stickers not detected. Ensure good lighting/contrast.'
-                    : `Detected only ${detectedStickers.length} sticker(s). Need ${MAX_BLOBS}.`;
+                alignmentStatus.textContent = finalStickers.length < 1 
+                    ? 'Stickers not detected. Ensure R50 is visible.'
+                    : `Detected only ${finalStickers.length} sticker(s). Need ${MAX_BLOBS}.`;
             }
         }
         
@@ -231,7 +261,6 @@
             const scaleX = overlayCanvas.width / videoElement.videoWidth;
             const scaleY = overlayCanvas.height / videoElement.videoHeight;
             
-            // **FIX: Removed flipX logic here as CSS transform: scaleX(-1) was removed**
             const screenX = (x) => x * scaleX;
 
             // Draw Detected Points
@@ -240,7 +269,7 @@
                 const x = screenX(p.x);
                 const y = p.y * scaleY;
                 overlayCtx.beginPath();
-                overlayCtx.arc(x, y, 8, 0, Math.PI * 2); // 8px radius
+                overlayCtx.arc(x, y, 10, 0, Math.PI * 2); // Increased radius for better visibility
                 overlayCtx.fill();
             });
 
@@ -268,44 +297,38 @@
             const angleDeg = calculateLineAngle(points);
 
             if (angleDeg === null) {
-                alignmentStatus.textContent = 'Need more points for alignment.';
-                alignmentStatus.className = 'text-center text-sm font-semibold text-yellow-400 min-w-[200px]';
                 return;
             }
-
-            // Target alignment is a line straight down the range, which means it should be 
-            // perfectly vertical in the camera frame (an angle of +90 or -90 degrees, or 
-            // close to 0 degrees if measured against the vertical axis).
             
-            // Since our angle is relative to the *horizontal* axis:
-            // 0 degrees = Perfectly horizontal (Bad alignment)
-            // 90 degrees = Perfectly vertical (Perfect alignment down range)
-            
-            const alignmentAngle = 90 - Math.abs(angleDeg); // Deviation from perfect vertical (90 degrees)
+            // The goal is for the line to be perfectly vertical (90 degrees or -90 degrees).
+            // We use the deviation from 90 degrees.
+            const deviationFromVertical = 90 - Math.abs(angleDeg); 
 
             const TOLERANCE = 2; // Tolerance in degrees
             
-            if (Math.abs(alignmentAngle) < TOLERANCE) {
-                // Perfect or near-perfect alignment (vertical)
-                alignmentStatus.textContent = `PERFECT ALIGNMENT! (Deviation: ${alignmentAngle.toFixed(1)}°)`;
+            if (Math.abs(deviationFromVertical) < TOLERANCE) {
+                // Perfect or near-perfect alignment
+                alignmentStatus.textContent = `PERFECT ALIGNMENT! (Deviation: ${deviationFromVertical.toFixed(1)}°)`;
                 alignmentStatus.className = 'text-center text-sm font-semibold text-green-400 min-w-[200px]';
             } else {
                 // Misaligned
                 let direction = '';
-                // Since 90 degrees is straight, > 90 means it's leaning left, < 90 leaning right
+                // If angleDeg is positive, the line is leaning toward the top-right
+                // If angleDeg is negative, the line is leaning toward the top-left
+                // This means to make the line more vertical (closer to 90/-90):
                 if (angleDeg > 0) {
                     direction = 'Rotate Right'; 
                 } else {
                     direction = 'Rotate Left'; 
                 }
                 
-                const deviation = angleDeg - 90; // The actual deviation from vertical
+                const absDeviation = Math.abs(deviationFromVertical);
                 
-                if (Math.abs(deviation) < 5) {
-                   alignmentStatus.textContent = `Minor Correction: ${direction} slightly. (${Math.abs(deviation).toFixed(1)}°)`;
+                if (absDeviation < 5) {
+                   alignmentStatus.textContent = `Minor Correction: ${direction} slightly. (${absDeviation.toFixed(1)}°)`;
                    alignmentStatus.className = 'text-center text-sm font-semibold text-orange-400 min-w-[200px]';
                 } else {
-                   alignmentStatus.textContent = `MAJOR CORRECTION NEEDED! ${direction}. (${Math.abs(deviation).toFixed(1)}°)`;
+                   alignmentStatus.textContent = `MAJOR CORRECTION NEEDED! ${direction}. (${absDeviation.toFixed(1)}°)`;
                    alignmentStatus.className = 'text-center text-sm font-semibold text-red-500 min-w-[200px]';
                 }
             }
@@ -404,4 +427,3 @@
     </script>
 </body>
 </html>
-
