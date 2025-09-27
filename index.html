@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garmin R50 Alignment Guide</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- PWA Manifest for Installation -->
+    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIEFsaWduZXIgVHV0b3IiLCAic2hvcnRfbmFtZSI6ICJSNTAgQWxpZ25lciIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#30bb96">
+
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Ensure the video fills the container and is flipped for rear camera (common fix) */
+        #videoElement {
+            min-width: 100%;
+            min-height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        /* Style for the main red alignment line */
+        .alignment-line {
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.9);
+        }
+    </style>
+</head>
+<body class="h-screen w-full bg-gray-900 flex flex-col overflow-hidden text-white p-0 m-0">
+
+    <!-- Header -->
+    <header class="p-4 bg-gray-800 shadow-lg z-10">
+        <h1 class="text-2xl font-bold text-center text-green-400">R50 Alignment Guide</h1>
+        <p class="text-xs text-center text-gray-400 mt-1">Align the three physical stickers to the center line.</p>
+    </header>
+
+    <!-- Camera Viewport & Alignment Overlay -->
+    <div class="flex-grow relative bg-black flex items-center justify-center overflow-hidden">
+        
+        <!-- Camera Feed (Video Element) -->
+        <video id="videoElement" autoplay playsinline class="hidden"></video>
+
+        <!-- Loading / Error States -->
+        <div id="statusOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-800/90 p-4">
+            <svg id="spinner" class="animate-spin h-8 w-8 text-green-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p id="loadingMessage" class="text-gray-300">Initializing camera...</p>
+            <button 
+                id="retryButton" 
+                onclick="startCamera()" 
+                class="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-xl shadow-lg text-white font-semibold transition duration-200 hidden"
+                >
+                Try Camera Again
+            </button>
+        </div>
+        
+        <!-- Alignment Guide Overlay -->
+        <div id="alignmentOverlay" class="absolute inset-0 pointer-events-none hidden">
+            
+            <!-- Primary Alignment Line (Vertical) - Align R50 Stickers Here -->
+            <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-red-500 opacity-90 alignment-line"></div>
+
+            <!-- Horizontal Level Guide (Center) -->
+            <div class="absolute top-1/2 left-0 w-full h-0.5 bg-blue-500 opacity-50"></div>
+            
+            <!-- Distance Markers -->
+            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[20%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
+            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[50%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
+            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[80%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
+
+            <!-- Center Crosshair -->
+            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 border-2 border-yellow-400 rounded-full"></div>
+        </div>
+    </div>
+
+    <!-- Footer / Info Panel -->
+    <footer class="p-3 bg-gray-800 z-10">
+        <div class="mt-2 text-center">
+          <p class="text-sm font-semibold text-green-300">
+            Instructions:
+          </p>
+          <ul class="text-xs text-gray-400 list-disc list-inside px-4">
+            <li>Place phone directly behind R50 (or in a mount).</li>
+            <li>Adjust the R50 until the **three reflective stickers** are perfectly centered on the **Red Vertical Line**.</li>
+          </ul>
+        </div>
+    </footer>
+
+    <script type="module">
+        // --- Firebase Imports (MUST be at the top of a module script) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Global variables and elements
+        const videoElement = document.getElementById('videoElement');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const retryButton = document.getElementById('retryButton');
+        const statusOverlay = document.getElementById('statusOverlay');
+        const alignmentOverlay = document.getElementById('alignmentOverlay');
+        const spinner = document.getElementById('spinner');
+
+        // --- Camera Logic ---
+        window.startCamera = async function() {
+            loadingMessage.textContent = 'Requesting camera access...';
+            statusOverlay.classList.remove('hidden');
+            videoElement.classList.add('hidden');
+            alignmentOverlay.classList.add('hidden');
+            retryButton.classList.add('hidden');
+            spinner.classList.remove('hidden');
+
+            // SIMPLIFIED CONSTRAINTS: Request rear camera without specific resolution demands 
+            // to maximize compatibility and speed up initialization.
+            const constraints = {
+                video: {
+                    facingMode: 'environment'
+                }
+            };
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = stream;
+                
+                // Play immediately after the stream is attached to resolve initialization quickly
+                videoElement.play(); 
+                
+                // Hide loading screen once playback starts
+                videoElement.onplay = () => {
+                    statusOverlay.classList.add('hidden');
+                    videoElement.classList.remove('hidden');
+                    alignmentOverlay.classList.remove('hidden');
+                    console.log('Camera initialized successfully.');
+                    videoElement.onplay = null; // Clear the event to prevent multiple calls
+                };
+                
+            } catch (err) {
+                console.error("Camera access error:", err);
+                spinner.classList.add('hidden');
+                retryButton.classList.remove('hidden');
+                
+                // Better error feedback
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    loadingMessage.textContent = 'Permission denied. Check your phone settings or click "Try Again" to re-prompt.';
+                } else if (err.name === 'NotFoundError') {
+                    loadingMessage.textContent = 'No camera found. Is the device camera working?';
+                } else {
+                    loadingMessage.textContent = `Camera Error: ${err.name}. Try restarting.`;
+                }
+            }
+        }
+
+        // --- PWA Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // Register a simple service worker that does nothing but satisfies PWA requirements
+                navigator.serviceWorker.register('data:application/javascript;base64,').then(registration => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                }, err => {
+                    console.log('Service Worker registration failed:', err);
+                });
+            });
+        }
+
+        // --- Initialize Camera on Load ---
+        window.addEventListener('load', startCamera);
+
+        // --- Firebase/Auth/App ID (Required Environment Context) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'garmin-r50-aligner';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+        try {
+            // Check if Firebase config is available before initializing
+            if (Object.keys(firebaseConfig).length > 0) {
+                 const app = initializeApp(firebaseConfig);
+                 const auth = getAuth(app);
+            
+                 async function authenticate() {
+                     if (typeof __initial_auth_token !== 'undefined') {
+                         await signInWithCustomToken(auth, __initial_auth_token);
+                     } else {
+                         await signInAnonymously(auth);
+                     }
+                     console.log('Firebase authentication setup complete.');
+                 }
+                 authenticate();
+            } else {
+                console.warn('Firebase config not found. Running application without authentication context.');
+            }
+            
+        } catch (error) {
+            console.error('Firebase Initialization Error:', error);
+        }
+    </script>
+</body>
+</html>
