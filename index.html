@@ -106,6 +106,10 @@
     </footer>
 
     <script type="module">
+        // --- Firebase Imports (MOVED TO TOP) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
         // Global variables and elements
         const videoElement = document.getElementById('videoElement');
         const loadingMessage = document.getElementById('loadingMessage');
@@ -151,13 +155,14 @@
                 spinner.classList.add('hidden');
                 retryButton.classList.remove('hidden');
                 
-                // Better error feedback
+                // Better error feedback (USING STANDARD STRING CONCATENATION TO AVOID SYNTAX ERROR)
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                     loadingMessage.textContent = 'Permission denied. Check your phone settings or click "Try Again" to re-prompt.';
                 } else if (err.name === 'NotFoundError') {
                     loadingMessage.textContent = 'No camera found. Is the device camera working?';
                 } else {
-                    loadingMessage.textContent = \`Camera Error: \${err.name}. Try restarting.\`;
+                    // FIX: Replaced template literal with concatenation
+                    loadingMessage.textContent = 'Camera Error: ' + err.name + '. Try restarting.';
                 }
             }
         }
@@ -203,10 +208,6 @@
         } catch (error) {
             console.error('Firebase Initialization Error:', error);
         }
-
-        // --- Firebase Imports ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     </script>
 </body>
 </html>
