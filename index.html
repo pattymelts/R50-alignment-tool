@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Garmin R50 Alignment Guide</title>
+    <title>R50 Precision Aligner & Targeting</title>
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -20,42 +20,52 @@
     </script>
     
     <!-- PWA Manifest for Installation -->
-    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIEFsaWduZXIgVHV0b3IiLCAic2hvcnRfbmFtZSI6ICJSNTAgQWxpZ25lciIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
+    <link rel="manifest" href="data:application/json;base64,eyJpY29ucyI6IFt7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyJ9LCB7InNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby81MTJ4NTEyLzNiYjk2ZC8wMDAwMDA/dGV4dD1BTEkiLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyJ9XSwgIm5hbWUiOiAiUjUwIFByZWNpc2lvbiBBbGlnbmVyIiwgInNob3J0X25hbWUiOiAiUjUwIFRhcmdldCIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAic3RhcnRfdXJsIjogIi4vIiwgImJhY2tncm91bmRfY29sb3IiOiAiIzE3MTcxNyIsICJ0aGVtZV9jb2xvciI6ICIjMzBiYjk2ZCJ9">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#30bb96">
 
     <style>
-        /* Use Inter font */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Ensure the video fills the container and is NOT flipped */
+        body { font-family: 'Inter', sans-serif; }
         #videoElement {
             min-width: 100%;
             min-height: 100%;
             object-fit: cover;
+            transform: scaleX(-1);
         }
-        /* Style for the main red alignment line */
         .alignment-line {
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.9);
+            transform-origin: 50% 50%; /* Center origin for rotation */
         }
-        /* Make the secondary line's pointer events active for dragging */
-        #secondaryLine {
-            cursor: grab;
+        .target-line {
+            box-shadow: 0 0 8px rgba(255, 255, 0, 0.7);
+        }
+        .calibration-point {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 50;
         }
     </style>
 </head>
 <body class="h-screen w-full bg-gray-900 flex flex-col overflow-hidden text-white p-0 m-0">
 
     <!-- Header -->
-    <header class="p-4 bg-gray-800 shadow-lg z-10">
-        <h1 class="text-2xl font-bold text-center text-green-400">R50 Alignment Guide</h1>
-        <p class="text-xs text-center text-gray-400 mt-1">Align the three physical stickers to the center line.</p>
+    <header class="p-3 bg-gray-800 shadow-lg z-10">
+        <h1 class="text-xl font-bold text-center text-green-400">R50 Precision Targeting</h1>
+        <div id="instructionText" class="text-sm text-center text-gray-400 mt-1">
+            STEP 1: Tap the center of the **top** R50 sticker.
+        </div>
     </header>
 
     <!-- Camera Viewport & Alignment Overlay -->
-    <div class="flex-grow relative bg-black flex items-center justify-center overflow-hidden">
+    <div id="cameraViewContainer" class="flex-grow relative bg-black flex items-center justify-center overflow-hidden" 
+        ontouchstart="handleTouchStart(event)" 
+        ontouchmove="handleTouchMove(event)" 
+        ontouchend="handleTouchEnd(event)" 
+        onclick="handleCalibrationClick(event)">
         
         <!-- Camera Feed (Video Element) -->
         <video id="videoElement" autoplay playsinline class="hidden"></video>
@@ -76,204 +86,245 @@
             </button>
         </div>
         
-        <!-- Alignment Guide Overlay (THIS IS WHERE THE LINES ARE GENERATED) -->
-        <div id="alignmentOverlay" class="absolute inset-0 pointer-events-none hidden">
+        <!-- Alignment Guide Overlay -->
+        <div id="alignmentOverlay" class="absolute inset-0 hidden">
+            <!-- Calibrated R50 Alignment Line (Red) -->
+            <div id="redLine" class="absolute h-[200vh] w-0.5 bg-red-500 opacity-90 alignment-line hidden"></div>
             
-            <!-- Secondary User-Movable Alignment Line (Yellow) -->
-            <!-- pointer-events: auto is added here to make this specific div draggable -->
-            <div id="secondaryLine" class="absolute inset-y-0 w-1 bg-yellow-400 opacity-90 alignment-line"
-                style="left: 25%; pointer-events: auto;"></div>
+            <!-- User Moveable Target Line (Yellow) -->
+            <div id="yellowLine" class="absolute h-[200vh] w-0.5 bg-yellow-400 opacity-70 target-line hidden"></div>
 
-            <!-- Primary Alignment Line (Vertical) - Align R50 Stickers Here -->
-            <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-red-500 opacity-90 alignment-line"></div>
-
-            <!-- Horizontal Level Guide (Center) -->
-            <div class="absolute top-1/2 left-0 w-full h-0.5 bg-blue-500 opacity-50"></div>
-            
-            <!-- Distance Markers -->
-            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[20%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
-            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[50%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
-            <div class="absolute w-2 h-2 rounded-full bg-red-500 top-[80%] left-1/2 -translate-x-1/2 shadow-xl border border-white"></div>
-
-            <!-- Center Crosshair -->
-            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 border-2 border-yellow-400 rounded-full"></div>
+            <!-- Calibration Points -->
+            <div id="point1" class="calibration-point bg-white border-2 border-green-500 hidden"></div>
+            <div id="point2" class="calibration-point bg-white border-2 border-green-500 hidden"></div>
         </div>
     </div>
 
-    <!-- Footer / Info Panel -->
-    <footer class="p-3 bg-gray-800 z-10">
-        <div class="mt-2 text-center">
-          <p class="text-sm font-semibold text-green-300">
-            Instructions:
-          </p>
-          <ul class="text-xs text-gray-400 list-disc list-inside px-4">
-            <li>Place phone directly behind R50 (or in a mount).</li>
-            <li>Align R50 stickers to the **Red Line**. Drag the **Yellow Line** to use as a secondary target reference.</li>
-          </ul>
+    <!-- Footer / Controls -->
+    <footer class="p-3 bg-gray-800 z-10 flex flex-col sm:flex-row justify-between items-center">
+        <button 
+            id="resetButton" 
+            onclick="resetCalibration()" 
+            class="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl shadow-lg text-white font-semibold transition duration-200 hidden mb-2 sm:mb-0"
+        >
+            Recalibrate R50
+        </button>
+        <div class="text-xs text-center text-gray-500 mt-2 sm:mt-0">
+            Drag **Yellow Line** to align target.
         </div>
     </footer>
 
     <script type="module">
-        // --- Firebase Imports (MOVED TO TOP) ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-        // Global variables and elements
+        // --- Globals ---
         const videoElement = document.getElementById('videoElement');
-        const loadingMessage = document.getElementById('loadingMessage');
-        const retryButton = document.getElementById('retryButton');
         const statusOverlay = document.getElementById('statusOverlay');
         const alignmentOverlay = document.getElementById('alignmentOverlay');
-        const spinner = document.getElementById('spinner');
+        const instructionText = document.getElementById('instructionText');
+        const redLine = document.getElementById('redLine');
+        const yellowLine = document.getElementById('yellowLine');
+        const resetButton = document.getElementById('resetButton');
+        const cameraViewContainer = document.getElementById('cameraViewContainer');
+        const point1 = document.getElementById('point1');
+        const point2 = document.getElementById('point2');
 
-        // Global state for dragging the secondary line
-        let isDragging = false;
-        let secondaryLine = null;
-        let container = null;
-        
-        // --- Dragging Logic ---
+        let calibrationPoints = [];
+        let redLineAngle = 0;
+        let isDraggingYellowLine = false;
+        let dragStartX = 0;
+        let yellowLineOffsetX = 0; // Relative horizontal offset from the center
+        const maxOffset = 300; // Maximum allowed drag distance in pixels
 
-        function setupDragListeners() {
-            secondaryLine = document.getElementById('secondaryLine');
-            container = document.getElementById('alignmentOverlay');
-            
-            // Mouse events
-            secondaryLine.addEventListener('mousedown', dragStart);
-            document.addEventListener('mousemove', dragMove);
-            document.addEventListener('mouseup', dragEnd);
-
-            // Touch events
-            secondaryLine.addEventListener('touchstart', dragStart);
-            document.addEventListener('touchmove', dragMove);
-            document.addEventListener('touchend', dragEnd);
-        }
-
-        function dragStart(e) {
-            e.preventDefault(); // Prevent default browser actions (scrolling/selection)
-            isDragging = true;
-            // Provide visual feedback while dragging
-            secondaryLine.classList.add('opacity-100', 'shadow-2xl'); 
-            console.log("Drag started.");
-        }
-
-        function dragMove(e) {
-            if (!isDragging || !container) return;
-            
-            // Use clientX from touch list or mouse event
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            
-            const containerRect = container.getBoundingClientRect();
-            
-            // Calculate new position as a percentage relative to the container width
-            let newPositionPercent = ((clientX - containerRect.left) / containerRect.width) * 100;
-
-            // Clamp the position between 0% and 100% to keep it on screen
-            newPositionPercent = Math.max(0, Math.min(100, newPositionPercent));
-
-            // Update the CSS position (lock to X axis ensures it remains parallel)
-            secondaryLine.style.left = newPositionPercent + '%';
-        }
-
-        function dragEnd() {
-            if (isDragging) {
-                isDragging = false;
-                secondaryLine.classList.remove('opacity-100', 'shadow-2xl');
-                console.log("Drag ended.");
-            }
-        }
-        
-        // --- Camera Logic ---
+        // --- Camera Initialization ---
         window.startCamera = async function() {
-            loadingMessage.textContent = 'Requesting camera access...';
             statusOverlay.classList.remove('hidden');
-            videoElement.classList.add('hidden');
-            alignmentOverlay.classList.add('hidden');
-            retryButton.classList.add('hidden');
-            spinner.classList.remove('hidden');
-
-            // SIMPLIFIED CONSTRAINTS: Request rear camera only
-            const constraints = {
-                video: {
-                    facingMode: 'environment'
-                }
-            };
+            redLine.classList.add('hidden');
+            yellowLine.classList.add('hidden');
+            
+            // Simplified constraints for max compatibility
+            const constraints = { video: { facingMode: 'environment' } };
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoElement.srcObject = stream;
                 
-                // Play immediately after the stream is attached to resolve initialization quickly
                 videoElement.play(); 
                 
-                // Hide loading screen once playback starts
                 videoElement.onplay = () => {
                     statusOverlay.classList.add('hidden');
                     videoElement.classList.remove('hidden');
                     alignmentOverlay.classList.remove('hidden');
-                    // Setup drag listeners once the camera feed is ready
-                    setupDragListeners();
-                    console.log('Camera initialized successfully and drag listeners setup.');
-                    videoElement.onplay = null; // Clear the event to prevent multiple calls
+                    resetButton.classList.remove('hidden');
+                    console.log('Camera initialized successfully.');
+                    videoElement.onplay = null;
                 };
                 
             } catch (err) {
                 console.error("Camera access error:", err);
-                spinner.classList.add('hidden');
-                retryButton.classList.remove('hidden');
+                document.getElementById('spinner').classList.add('hidden');
+                document.getElementById('retryButton').classList.remove('hidden');
                 
-                // Better error feedback (USING STANDARD STRING CONCATENATION TO AVOID SYNTAX ERROR)
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    loadingMessage.textContent = 'Permission denied. Check your phone settings or click "Try Again" to re-prompt.';
-                } else if (err.name === 'NotFoundError') {
-                    loadingMessage.textContent = 'No camera found. Is the device camera working?';
-                } else {
-                    // FIX: Replaced template literal with concatenation
-                    loadingMessage.textContent = 'Camera Error: ' + err.name + '. Try restarting.';
+                const errMsg = err.name === 'NotAllowedError' ? 
+                    'Permission denied. Check your phone settings.' : 
+                    \`Camera Error: \${err.name}. Try restarting.\`;
+                document.getElementById('loadingMessage').textContent = errMsg;
+            }
+        }
+
+        // --- Alignment and Targeting Logic ---
+
+        /**
+         * Step 1: Handle user clicks to define the alignment line.
+         */
+        window.handleCalibrationClick = function(event) {
+            if (calibrationPoints.length >= 2) return; // Calibration complete
+
+            // Get coordinates relative to the video container
+            const rect = cameraViewContainer.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            calibrationPoints.push({ x, y });
+
+            // Display the point marker
+            const pointElement = calibrationPoints.length === 1 ? point1 : point2;
+            pointElement.style.left = \`${x}px\`;
+            pointElement.style.top = \`${y}px\`;
+            pointElement.classList.remove('hidden');
+
+            if (calibrationPoints.length === 1) {
+                instructionText.textContent = "STEP 2: Tap the center of the **bottom** R50 sticker.";
+            } else if (calibrationPoints.length === 2) {
+                instructionText.textContent = "CALIBRATED! Drag the Yellow Line to aim at your target.";
+                calculateAndDrawLines();
+            }
+        }
+
+        /**
+         * Step 2: Calculate the angle and rotation based on two points.
+         */
+        function calculateAndDrawLines() {
+            if (calibrationPoints.length < 2) return;
+
+            const p1 = calibrationPoints[0];
+            const p2 = calibrationPoints[1];
+
+            // 1. Calculate the angle of the line connecting P1 and P2
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            // Angle in radians, converted to degrees
+            redLineAngle = Math.atan2(dy, dx) * (180 / Math.PI) + 90; // +90 to make it vertical
+
+            // 2. Calculate the center point for rotation and positioning
+            const centerX = (p1.x + p2.x) / 2;
+            const centerY = (p1.y + p2.y) / 2;
+
+            // 3. Position and rotate the RED R50 Alignment Line
+            redLine.style.left = \`${centerX}px\`;
+            redLine.style.top = '0'; // Use the center X for positioning
+            redLine.style.transform = \`translateX(-50%) rotate(\${redLineAngle}deg)\`;
+            redLine.classList.remove('hidden');
+
+            // 4. Initialize the YELLOW Target Line (starts on top of the red line)
+            yellowLineOffsetX = 0; // Reset offset
+            updateYellowLinePosition();
+            yellowLine.classList.remove('hidden');
+        }
+
+        /**
+         * Step 3: Handle dragging the Yellow Line.
+         */
+        window.handleTouchStart = function(event) {
+            // Only start drag if calibration is complete and there's only one touch (not pinch)
+            if (calibrationPoints.length === 2 && event.touches.length === 1) {
+                const touchX = event.touches[0].clientX;
+                const rect = cameraViewContainer.getBoundingClientRect();
+                
+                // Check if the touch is near the yellow line (simple horizontal check)
+                const yellowLineCenter = rect.left + rect.width / 2 + yellowLineOffsetX;
+                if (Math.abs(touchX - yellowLineCenter) < 50) { // 50px tap target is easier on mobile
+                    isDraggingYellowLine = true;
+                    dragStartX = touchX - yellowLineOffsetX; // Store initial offset
+                    event.preventDefault(); // Prevent scrolling while dragging
                 }
             }
         }
 
-        // --- PWA Service Worker Registration ---
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                // Register a simple service worker that does nothing but satisfies PWA requirements
-                navigator.serviceWorker.register('data:application/javascript;base64,').then(registration => {
-                    console.log('Service Worker registered with scope:', registration.scope);
-                }, err => {
-                    console.log('Service Worker registration failed:', err);
-                });
-            });
+        window.handleTouchMove = function(event) {
+            if (isDraggingYellowLine && event.touches.length === 1) {
+                const touchX = event.touches[0].clientX;
+                const rect = cameraViewContainer.getBoundingClientRect();
+                
+                let newOffset = touchX - dragStartX;
+
+                // Clamp the offset to prevent dragging too far off screen
+                newOffset = Math.max(Math.min(newOffset, maxOffset), -maxOffset);
+
+                yellowLineOffsetX = newOffset;
+                updateYellowLinePosition();
+                event.preventDefault();
+            }
         }
 
-        // --- Initialize Camera on Load ---
-        window.addEventListener('load', startCamera);
+        window.handleTouchEnd = function() {
+            isDraggingYellowLine = false;
+        }
+        
+        // Helper to update the Yellow Line position while keeping its angle parallel to Red
+        function updateYellowLinePosition() {
+            const centerX = cameraViewContainer.offsetWidth / 2;
+            // We use the same rotation angle but apply a new horizontal offset (left)
+            // The translateX(-50%) is to keep the line centered on its calculated left position.
+            yellowLine.style.left = \`${centerX + yellowLineOffsetX}px\`;
+            yellowLine.style.transform = \`translateX(-50%) rotate(\${redLineAngle}deg)\`;
+        }
 
-        // --- Firebase/Auth/App ID (Required Environment Context) ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'garmin-r50-aligner';
+
+        /**
+         * Reset function.
+         */
+        window.resetCalibration = function() {
+            calibrationPoints = [];
+            redLineAngle = 0;
+            yellowLineOffsetX = 0;
+            isDraggingYellowLine = false;
+
+            redLine.classList.add('hidden');
+            yellowLine.classList.add('hidden');
+            point1.classList.add('hidden');
+            point2.classList.add('hidden');
+            
+            instructionText.textContent = "STEP 1: Tap the center of the **top** R50 sticker.";
+            updateYellowLinePosition(); // Reset to center
+        }
+
+        // --- Firebase Imports/Setup (Required Environment Context) ---
+        // (Authentication is handled but not used for data storage here)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'r50-precision-targeting';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-
+        
         try {
-            // Check if Firebase config is available before initializing
             if (Object.keys(firebaseConfig).length > 0) {
                  const app = initializeApp(firebaseConfig);
                  const auth = getAuth(app);
-            
                  async function authenticate() {
                      if (typeof __initial_auth_token !== 'undefined') {
                          await signInWithCustomToken(auth, __initial_auth_token);
                      } else {
                          await signInAnonymously(auth);
                      }
-                     console.log('Firebase authentication setup complete.');
                  }
                  authenticate();
-            } else {
-                console.warn('Firebase config not found. Running application without authentication context.');
             }
-            
         } catch (error) {
             console.error('Firebase Initialization Error:', error);
         }
+
+        // --- Initialize on Load ---
+        window.addEventListener('load', startCamera);
+
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     </script>
 </body>
 </html>
