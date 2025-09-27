@@ -115,6 +115,10 @@
     </footer>
 
     <script type="module">
+        // --- Firebase Imports (MUST be at the top of a module script) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
         // --- Globals ---
         const videoElement = document.getElementById('videoElement');
         const statusOverlay = document.getElementById('statusOverlay');
@@ -165,7 +169,7 @@
                 
                 const errMsg = err.name === 'NotAllowedError' ? 
                     'Permission denied. Check your phone settings.' : 
-                    \`Camera Error: \${err.name}. Try restarting.\`;
+                    `Camera Error: ${err.name}. Try restarting.`; // FIXED: Removed escaping backslash
                 document.getElementById('loadingMessage').textContent = errMsg;
             }
         }
@@ -187,8 +191,8 @@
 
             // Display the point marker
             const pointElement = calibrationPoints.length === 1 ? point1 : point2;
-            pointElement.style.left = \`${x}px\`;
-            pointElement.style.top = \`${y}px\`;
+            pointElement.style.left = `${x}px`; // FIXED: Removed escaping backslash
+            pointElement.style.top = `${y}px`; // FIXED: Removed escaping backslash
             pointElement.classList.remove('hidden');
 
             if (calibrationPoints.length === 1) {
@@ -219,9 +223,9 @@
             const centerY = (p1.y + p2.y) / 2;
 
             // 3. Position and rotate the RED R50 Alignment Line
-            redLine.style.left = \`${centerX}px\`;
+            redLine.style.left = `${centerX}px`; // FIXED: Removed escaping backslash
             redLine.style.top = '0'; // Use the center X for positioning
-            redLine.style.transform = \`translateX(-50%) rotate(\${redLineAngle}deg)\`;
+            redLine.style.transform = `translateX(-50%) rotate(${redLineAngle}deg)`; // FIXED: Removed escaping backslash
             redLine.classList.remove('hidden');
 
             // 4. Initialize the YELLOW Target Line (starts on top of the red line)
@@ -274,8 +278,8 @@
             const centerX = cameraViewContainer.offsetWidth / 2;
             // We use the same rotation angle but apply a new horizontal offset (left)
             // The translateX(-50%) is to keep the line centered on its calculated left position.
-            yellowLine.style.left = \`${centerX + yellowLineOffsetX}px\`;
-            yellowLine.style.transform = \`translateX(-50%) rotate(\${redLineAngle}deg)\`;
+            yellowLine.style.left = `${centerX + yellowLineOffsetX}px`; // FIXED: Removed escaping backslash
+            yellowLine.style.transform = `translateX(-50%) rotate(${redLineAngle}deg)`; // FIXED: Removed escaping backslash
         }
 
 
@@ -321,10 +325,6 @@
 
         // --- Initialize on Load ---
         window.addEventListener('load', startCamera);
-
-        // --- Firebase Imports ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     </script>
 </body>
 </html>
